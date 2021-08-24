@@ -44,6 +44,13 @@ function check_submit(){
         let result = ["Product",products]
         return result
       }
+      // 选择导出icon_hash, 则返回处理过后的icon_hash
+      else if (radio_value[i].value == "icon_hash") {
+        let input = $(".search-input").val();
+        let icon_hashs = get_icon_hashs(input)
+        let result = ["icon_hash",icon_hashs]
+        return result
+      }
     }
   }
 }
@@ -62,12 +69,15 @@ function get_por_or_pro(por_or_pro){
     } else if (por_or_pro[0]=="product"){
       let products = get_Products(por_or_pro[1])
       return ["Url","product",products]
+    } else if (por_or_pro[0]=="icon_hash"){
+      let icon_hashs = get_icon_hashs(por_or_pro[1])
+      return ["Url","icon_hash",icon_hashs]
     } else {
-      goby.showErrorMessage("只支持空值或port、product！");
+      goby.showErrorMessage("只支持空值或port、product、icon_hash！");
       return ["Url",0]
     }
   } else {
-    goby.showErrorMessage("只支持空值或port、product！");
+    goby.showErrorMessage("只支持空值或port、product、icon_hash！");
     return ["Url",0]
   }
 }
@@ -119,11 +129,30 @@ function get_Products(products){
     products = products.split(",")
     for (let i=0,len=products.length;i<len;i++){
       products_list.push(products[i])
-    } 
+    }
   } else {
       products_list.push(products)
     }
   return products_list
+}
+
+// 处理 icon_hash
+function get_icon_hashs(icon_hashs){
+  // 获取输入框的值
+  let icon_hash_list = [];
+  // 如过输入框为空则返回0
+  if (!icon_hashs){
+    return 0
+  } else if (icon_hashs.indexOf(",")!=-1){
+    // 检测是否存在",",若存在则拆分
+    icon_hashs = icon_hashs.split(",")
+    for (let i=0,len=icon_hashs.length;i<len;i++){
+      icon_hash_list.push(icon_hashs[i])
+    }
+  } else {
+    icon_hash_list.push(icon_hashs)
+  }
+  return icon_hash_list
 }
 
 
@@ -139,7 +168,7 @@ function getAsset2Csv(data) {
     let result = check_submit()
     if (!result){
       // 如果没有选择导出数据
-      goby.showErrorMessage("请选择导出数据:url、port或product！");
+      goby.showErrorMessage("请选择导出数据:url、port、product或icon_hash！");
     } else if(result[0] == "Url"){
       // 返回值为0说明参数错误
       if (result[1]==0){
@@ -256,42 +285,70 @@ function getAsset2Csv(data) {
     } else {
       goby.showErrorMessage("请输入导出参数或检查参数是否有误！");
     }
-  } else if(result[0] == "Product"){
-    // 选择了根据Product导出
-    if (result[1]!=0){
-      input_is_true = 1;
-      fields = ["ip","Port","Product"];
-      opts = { fields };
-      ips = data.data.ips
-      for (let i=0,len=ips.length;i<len;i++){
-        protocols = ips[i]["protocols"]
-        ip = ips[i]["ip"]
-        for (let pkey in protocols){
-          if (pkey){
-            protocols_Val = protocols[pkey]
-            port = protocols_Val["port"]
-            products = protocols_Val["products"]
-            if (products[0]!=""){
-              // 遍历products
-              for (let j=0,len=products.length;j<len;j++){
-                // 判断当前product是否在用户输入的products范围内，如果是，则添加到assets_field
-                if (result[1].indexOf(products[j])!=-1){
-                  let asset= {
-                    "ip":ip,
-                    "Port":port,
-                    "Product":products[j]
+  } else if(result[0] == "Product") {
+      // 选择了根据Product导出
+      if (result[1] != 0) {
+        input_is_true = 1;
+        fields = ["ip", "Port", "Product"];
+        opts = {fields};
+        ips = data.data.ips
+        for (let i = 0, len = ips.length; i < len; i++) {
+          protocols = ips[i]["protocols"]
+          ip = ips[i]["ip"]
+          for (let pkey in protocols) {
+            if (pkey) {
+              protocols_Val = protocols[pkey]
+              port = protocols_Val["port"]
+              products = protocols_Val["products"]
+              if (products[0] != "") {
+                // 遍历products
+                for (let j = 0, len = products.length; j < len; j++) {
+                  // 判断当前product是否在用户输入的products范围内，如果是，则添加到assets_field
+                  if (result[1].indexOf(products[j]) != -1) {
+                    let asset = {
+                      "ip": ip,
+                      "Port": port,
+                      "Product": products[j]
+                    }
+                    assets_field.push(asset)
                   }
-                  assets_field.push(asset)
                 }
               }
             }
           }
         }
       }
-    } else {
+    } else if(result[0] == "icon_hash"){
+      // 选择了根据icon_hash导出
+      if (result[1]!=0){
+        input_is_true = 1;
+        fields = ["ip","hostinfo", "icon_hash"];
+        opts = { fields };
+        ips = data.data.ips
+        console.log(ips)
+        for (let i=0,len=ips.length;i<len;i++){
+          favicons = ips[i]["favicons"]
+          console.log(favicons)
+          ip = ips[i]["ip"]
+          for (let j=0, len2=favicons.length; j<len2; j++){
+            if(result[1] == favicons[j]["phash"]){
+              hostinfo = favicons[j]["hostinfo"]
+              phash = favicons[j]["phash"]
+              let asset= {
+                "ip":ip,
+                "hostinfo":hostinfo,
+                "icon_hash": phash
+              }
+              assets_field.push(asset)
+            }
+          }
+        }
+      }
+    }
+    else {
       goby.showErrorMessage("请输入导出参数或检查参数是否有误！");
     }
-  }
+
   if (assets_field.length!=0){
     try {
       const parser = new json2csv.Parser(opts);
@@ -308,10 +365,12 @@ function getAsset2Csv(data) {
       goby.showInformationMessage("导出成功！");
     } catch (err) {
       goby.showErrorMessage(err);
-    } 
+    }
   } else {
     if (input_is_true==1){
       goby.showErrorMessage("要导出的资产为空！请确定参数是否输入正确！");
+    } else {
+      goby.showErrorMessage("something wrong");
     }
   }
 } else {
@@ -460,6 +519,26 @@ function getAsset2Txt(data) {
       }
     }
   }
+  else if(result[0] == "icon_hash") {
+      if (result[1] != 0){
+        ips = data.data.ips
+        for (let i=0, len=ips.length; i<len; i++){
+          favicons = ips[i]["favicons"]
+          if (!favicons) {
+            continue
+          }
+          ip = ips[i]["ip"]
+          for (let j=0, len2=favicons.length; j<len2; j++){
+            if(result[1] == favicons[j]["phash"]){
+              let asset={
+                "Url": favicons[j]["hostinfo"] + "  " + favicons[j]["phash"]
+              }
+              assets_field.push(asset)
+            }
+          }
+        }
+    }
+  }
   if (assets_field.length!=0){
     try {
       console.log("assets_field.length",assets_field.length)
@@ -469,7 +548,7 @@ function getAsset2Txt(data) {
       goby.showInformationMessage("导出成功！");
     } catch (err) {
       goby.showErrorMessage(err);
-    } 
+    }
   } else {
     goby.showErrorMessage("要导出的资产为空！请确定参数是否输入正确！");
   }
